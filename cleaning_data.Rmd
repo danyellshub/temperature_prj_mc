@@ -14,8 +14,11 @@ library(tidyr)
 library(lubridate)
 library(xts)
 library(dygraphs)
+library(sf)
 library(raster)
 library(USAboundaries)
+library(mapview)
+
 
 ```
 
@@ -44,21 +47,6 @@ my_reader <- function(file){
 }
 
 data_clean <- map_dfr(files,my_reader)
-
-
-```
-
-
-```{r}
-
-# convert to xts
-data_xts <- data_clean_hourly %>%
-  mutate(date = ymd_hm(date, tz='MST'))%>%
-  arrange(date) %>%
-  xts(., order.by = .$date)
-
-#plot in dygraph
-# dygraph(data_xts)
 
 ```
 
@@ -124,12 +112,12 @@ ggplot(temp_max, aes(x=month, y=max_temp, color=site))+
 
 ggplot(temp_min, aes(x=month, y=min_temp, color=site))+
   geom_line()
+
 ```
 
 # dygraph of temp vs time
 
 ```{r}
-
 temp_wide <- temp %>%
   spread(., key='site',
          value='temp')%>%
@@ -151,15 +139,37 @@ dygraph(data_xts)%>%
 ```{r}
 #location data frame
 
-utmE <- c()
+utmE <- c(449451, 449437, 449220, 449008, 448513, 448198, 447880, 446903,
+          449429, 448272, 447472)
 
-#exploring sites (bn29??)
-bn29 <- data_clean %>%
-  filter(site == "BN29")
+utmN <- c(4491181, 4491210, 4491086, 4490502, 4489917, 4489759, 4489705,
+          4489234, 4491265, 4489694, 4489393)
 
-bm21 <- data_clean %>%
-  filter(site == "BM21")
+elev <- c(2787, 2789, 2837, 2853, 2889, 2907, 2911, 3001, 2796.2, 2873,
+          2955)
 
+site <- c('BM25', 'BM26', 'BM28', 'BM29', 'BM30', 'BM31', 'BM32', 
+          'BM33', 'BM42', 'BM43', 'BM44')
+
+location_data <- cbind(site, utmE, utmN, elev) %>%
+  as.data.frame()
+
+location_data_num <- location_data %>%
+  mutate(site = as.character(site),
+         utmE = as.numeric(as.character(utmE)),
+         utmN = as.numeric(as.character(utmN)),
+         elev = as.numeric(as.character(elev)))
+
+str(location_data_num)
 ```
 
+# Making spatial points
+```{r}
+
+spatial_points <- location_data_num %>%
+  st_as_sf(coords=c('utmE','utmN'), crs=26913)
+
+mapview(spatial_points)
+
+```
 
