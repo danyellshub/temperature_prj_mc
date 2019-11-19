@@ -12,25 +12,10 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 library(lubridate)
-
-```
-
-# Reading in data
-
-```{r}
-
-bm21_10 <- read.csv('data/BM21_TRH_10min_C9-C6-AA-20-88-31_2019-07-01_17-51.csv')
-bm25 <- read.csv('data/BM25_TRH_C7A952580C33_2019-07-04_1001.csv')
-bm26 <- read.csv('data/BM26_TRH_EC45A77D726D_2019-07-04_1001.csv')
-bm28 <- read.csv('data/BM28_TRH_FB02A740827F_2019-07-08_1501.csv')
-bm30 <- read.csv('data/BM30_TRH_F5B7F211C84E_2019-07-08_1101.csv')
-bm31 <- read.csv('data/BM31_TRH_EE2DE1DBAD2D_2019-07-08_1101.csv')
-bm32 <- read.csv('data/BM32_TRH_C5C6BC90A5FC_2019-07-08_1201.csv')
-bm33 <- read.csv('data/BM33_TRH-D8B0D975ADA5_2019-07-08_1401.csv')
-bm42 <- read.csv('data/BM42_Pr_CCECD8382986_2019-07-04_1001.csv')
-bm43 <- read.csv('data/BM43_Pr_C457F4BBC9C0_2019-07-08_1101.csv')
-bm44 <- read.csv('data/BM44_Pr-D4F2BAE78C5A_2019-07-08_1401.csv')
-bn29 <- read.csv('data/BN29_TRH_D044A89B966C_2019-07-08_1101.csv')
+library(xts)
+library(dygraphs)
+library(raster)
+library(USAboundaries)
 
 ```
 
@@ -44,7 +29,7 @@ my_reader <- function(file){
   data_names = str_split_fixed(file,'_',2)[,1]
   name = gsub('data/','',data_names)
   df <- read_csv(file,) %>%
-    select(address, name, version, logging_interval)%>%
+    dplyr::select(address, name, version, logging_interval)%>%
     rename('date' = 1,
            'temp' = 2,
            'humidity' = 3,
@@ -53,17 +38,128 @@ my_reader <- function(file){
     mutate(humidity = as.numeric(humidity))%>%
     mutate(dewpoint = as.numeric(dewpoint))%>%
     slice(-1,-2)%>%
-    mutate(site = name)
+    mutate(site = name)%>%
+    mutate(site = replace(site, list=site=="BN29", values="BM29"))
   return(df)
 }
 
 data_clean <- map_dfr(files,my_reader)
-str(data_clean)
+
+
 ```
 
 
 ```{r}
 
+# convert to xts
+data_xts <- data_clean_hourly %>%
+  mutate(date = ymd_hm(date, tz='MST'))%>%
+  arrange(date) %>%
+  xts(., order.by = .$date)
+
+#plot in dygraph
+# dygraph(data_xts)
 
 ```
+
+# Random Fixes
+```{r}
+#BM42, 43, 44 had dewpoints of 700 and higher, so i removed
+dewpoint_analysis <- data_clean %>%
+  filter(., !site == "BM42",
+         !site == "BM43",
+         !site == "BM44")
+
+#bm21 calculated temp every 10 minutes, so I took average to get hourly
+bm21_hourly <- data_clean %>%
+  filter(site == "BM21")%>%
+  mutate(date = ymd_hm(date, tz='MST'))%>%
+  mutate(hour = hour(date))%>%
+  mutate(day = day(date))%>%
+  mutate(month = month(date))%>%
+  group_by(site, month, day, hour)%>%
+  summarize(mean_temp = mean(temp))%>%
+  as.data.frame()%>%
+  as.tibble()
+
+```
+
+# Pulling Elevation Data
+
+```{r}
+
+
+
+```
+
+
+
+```{r}
+# looking at temperature only
+temp <- data_clean%>%
+  dplyr::select(date, temp, site) %>%
+  filter(!site == "BM21")%>%
+  mutate(date = ymd_hm(date, tz='MST'))
+
+temp_means <- temp %>%
+  mutate(month = month(date))%>%
+  group_by(month, site)%>%
+  summarise(mean_temp = mean(temp))
+
+temp_max <- temp %>%
+  mutate(month = month(date))%>%
+  group_by(month, site)%>%
+  summarise(max_temp = max(temp))
+
+temp_min <- temp %>%
+  mutate(month = month(date))%>%
+  group_by(month, site)%>%
+  summarise(min_temp = min(temp))
+
+ggplot(temp_means, aes(x=month, y=mean_temp, color=site))+
+  geom_line()
+
+ggplot(temp_max, aes(x=month, y=max_temp, color=site))+
+  geom_line()
+
+ggplot(temp_min, aes(x=month, y=min_temp, color=site))+
+  geom_line()
+```
+
+# dygraph of temp vs time
+
+```{r}
+
+temp_wide <- temp %>%
+  spread(., key='site',
+         value='temp')%>%
+  filter_if(is.numeric, all_vars(!is.na(.)))
+
+temp_xts <- temp_wide %>%
+  xts(., order.by = .$date)
+
+dygraph(data_xts)%>%
+  dyAxis('y', label='Temperature (°C)', valueRange=c(-15,40))
+
+# min_temp <- temp_wide %>%
+#   filter(BM44 == -14.50)
+
+```
+
+
+
+```{r}
+#location data frame
+
+utmE <- c()
+
+#exploring sites (bn29??)
+bn29 <- data_clean %>%
+  filter(site == "BN29")
+
+bm21 <- data_clean %>%
+  filter(site == "BM21")
+
+```
+
 
