@@ -1,0 +1,83 @@
+---
+title: "Night vs Day Lapse Rate"
+author: "Danielle Reimanis"
+date: "12/5/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(ggthemes)
+library(ggplot2)
+library(darksky)
+library(purrr)
+
+```
+
+Loading Data
+```{r}
+
+load('./all_sites.Rdata')
+
+str(merge_temp_location)
+
+# Pulling Sunrise and Sunset
+
+?get_forecast_for
+
+drk_sky_tmp <- get_forecast_for(40.556899, -105.611251, 
+                                timestamp = "2019-07-01T12:00:00",
+                                exclude = 'currently')
+
+daily_data <- drk_sky_tmp$daily
+hourly_data <- drk_sky_tmp$hourly
+
+date_string <- merge_temp_location %>%
+  select(date) %>%
+  mutate(date = date(date))%>%
+  unique(.)
+
+date = date_string$date
+
+date_df <- date_string %>%
+  mutate(time = "T12:00:00-0400")%>%
+  unite(when, c(date, time), sep = "")%>%
+  mutate(lat = 40.556899,
+         long = -105.611251)
+
+list_dates <- pmap(list(date_df$lat, date_df$long,
+                        date_df$when), 
+                   get_forecast_for)
+names(list_dates) <- date_string$date
+
+
+daily_drk <- list_dates%>%
+  tibble()
+
+
+
+
+
+daily_function <- function(x){
+day <- list_dates$`x`
+daily_day_1 <- day1$daily%>%
+  select(1,4,5)
+}
+
+```
+
+Day Averages
+```{r}
+
+day_avg <- merge_temp_location %>%
+  mutate(hour = )
+
+```
+
+
+

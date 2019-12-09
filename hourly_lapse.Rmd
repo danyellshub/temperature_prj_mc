@@ -1,0 +1,148 @@
+---
+title: "Hourly Lapse Rate"
+author: "Danielle Reimanis"
+date: "12/9/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(ggthemes)
+library(ggplot2)
+library(purrr)
+library(xts)
+library(dygraphs)
+```
+
+
+```{r, include=FALSE}
+
+load('./all_sites.Rdata')
+
+```
+
+## Hourly Regression
+
+```{r, warning = FALSE}
+
+hourly_lapse <- merge_temp_location %>%
+  pull(date)
+
+hourly_lm_fn <- function(x){
+ filter_temp <- merge_temp_location%>%
+    filter(date == x)
+ 
+  hourly_lapse_lm <- lm(temp ~ elev, data = filter_temp)
+
+}
+
+hr_lapse_lm <- hourly_lapse%>%
+  map(~hourly_lm_fn(.x))%>%
+  set_names(hourly_lapse)
+
+hr_lapse_summary <- hr_lapse_lm %>%
+  map(~summary(.x))
+
+hr_lapse_slopes <- hr_lapse_summary %>%
+  map(~coef(.x)[2])%>%
+  simplify()%>%
+  tibble()%>%
+  mutate(date = hourly_lapse)%>%
+  rename(lapse_rate = 1)%>%
+  mutate(lapse_km = lapse_rate * 1000)
+
+```
+
+## Plotting Hourly Lapse
+
+```{r, echo = FALSE, warning = FALSE}
+
+ggplot(hr_lapse_slopes, aes(x=date, y=lapse_km))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+ggplot(hr_lapse_slopes, aes(x=date, y=lapse_km))+
+  geom_line()+
+  theme_linedraw()+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+# hr_lapse_xts <- hr_lapse_slopes%>%
+#   select(date, lapse_km)%>%
+#   xts(., order.by = .$date)
+# 
+# dygraph(hr_lapse_xts)
+
+```
+
+## At what time stamp were all stations 'online'?
+
+```{r, warning = FALSE}
+
+station_count <- merge_temp_location %>%
+  arrange(date)%>%
+  group_by(date)%>%
+  count(site = n())
+
+summary(station_count)
+
+time_step_all <- station_count %>%
+  filter(site == 11) 
+ 
+summary(time_step_all)
+
+```
+
+## Correcting for all sites 
+
+```{r, warning = FALSE}
+hr_lapse_corrected <- hr_lapse_slopes %>%
+  filter(date > "2019-07-08 15:01:00") %>%
+  select(2,3)
+
+ggplot(hr_lapse_corrected, aes(x = date, y = lapse_km))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x= 'Date', y='Lapse Rate (°C/km)')
+
+ggplot(hr_lapse_corrected, aes(x = date, y = lapse_km))+
+  geom_line()+
+  theme_linedraw()+
+  labs(x= 'Date', y='Lapse Rate (°C/km)')
+```
+
+
+```{r, echo = FALSE}
+# hr_lapse_xts_corrected <- hr_lapse_corrected%>%
+#   select(date, lapse_km)%>%
+#   xts(., order.by = .$date)
+# 
+# dygraph(hr_lapse_xts_corrected)
+
+```
+
+## Coefficients from hourly
+
+```{r, warning = FALSE}
+
+hr_lapse_coef <- hr_lapse_summary %>%
+  map(~coef(.x)[1])%>%
+  simplify()%>%
+  tibble()%>%
+  mutate(date = hourly_lapse)%>%
+  rename(intercept = 1)%>%
+  filter(date > "2019-07-08 15:01:00")
+
+ggplot(hr_lapse_coef, aes(x = date, y = intercept))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x = 'Date', y = 'Temperature at Sea Level (°C)')
+  
+```
+
+

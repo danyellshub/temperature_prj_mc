@@ -1,5 +1,5 @@
 ---
-title: "Cleaning Data"
+title: "Cleaning Data and Daily Lapse Rate"
 author: "Danielle Reimanis"
 date: "10/17/2019"
 output: html_document
@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r}
+```{r setup, include=FALSE}
 library(dplyr)
 library(tidyverse)
 library(tidyr)
@@ -18,13 +18,17 @@ library(sf)
 library(raster)
 library(USAboundaries)
 library(mapview)
-
+library(animation)
+library(gganimate)
+library(purrr)
+library(tmap)
+library(ggpubr)
 
 ```
 
 # Cleaning data, selecting relevant observations, joining to long
 
-```{r}
+```{r, warning = FALSE, message = FALSE}
 
 files <- list.files('data',full.names = T)
 
@@ -48,42 +52,12 @@ my_reader <- function(file){
 
 data_clean <- map_dfr(files,my_reader)
 
-```
-
-# Random Fixes
-```{r}
-#BM42, 43, 44 had dewpoints of 700 and higher, so i removed
-dewpoint_analysis <- data_clean %>%
-  filter(., !site == "BM42",
-         !site == "BM43",
-         !site == "BM44")
-
-#bm21 calculated temp every 10 minutes, so I took average to get hourly
-bm21_hourly <- data_clean %>%
-  filter(site == "BM21")%>%
-  mutate(date = ymd_hm(date, tz='MST'))%>%
-  mutate(hour = hour(date))%>%
-  mutate(day = day(date))%>%
-  mutate(month = month(date))%>%
-  group_by(site, month, day, hour)%>%
-  summarize(mean_temp = mean(temp))%>%
-  as.data.frame()%>%
-  as.tibble()
 
 ```
 
-# Pulling Elevation Data
+## Basic Temperature Plots
 
-```{r}
-
-
-
-```
-
-
-
-```{r}
-# looking at temperature only
+```{r, warning = FALSE, message = FALSE}
 temp <- data_clean%>%
   dplyr::select(date, temp, site) %>%
   filter(!site == "BM21")%>%
@@ -92,32 +66,56 @@ temp <- data_clean%>%
 temp_means <- temp %>%
   mutate(month = month(date))%>%
   group_by(month, site)%>%
-  summarise(mean_temp = mean(temp))
+  summarise(mean_temp = mean(temp))%>%
+  ungroup(month)%>%
+  mutate(month = month.abb[month])%>%
+  mutate(month = factor(month, levels = unique(month)[c(1:4)]))
 
 temp_max <- temp %>%
   mutate(month = month(date))%>%
   group_by(month, site)%>%
-  summarise(max_temp = max(temp))
+  summarise(max_temp = max(temp)) %>%
+  ungroup(month)%>%
+  mutate(month = month.abb[month])%>%
+  mutate(month = factor(month, levels = unique(month)[c(1:4)]))
 
 temp_min <- temp %>%
   mutate(month = month(date))%>%
   group_by(month, site)%>%
-  summarise(min_temp = min(temp))
+  summarise(min_temp = min(temp))%>%
+  ungroup(month)%>%
+  mutate(month = month.abb[month])%>%
+  mutate(month = factor(month, levels = unique(month)[c(1:4)]))
 
-ggplot(temp_means, aes(x=month, y=mean_temp, color=site))+
-  geom_line()
+plot_fn <- function(data = temp_means, 
+                    yval = mean_temp, 
+                    title = 'title'){
+  p1 <- ggplot(temp_means, 
+       aes(x=month, y=mean_temp, color=site, group = site))+
+  geom_line()+
+  theme_linedraw()+
+  labs(x = 'Month', 
+       y= 'Temperature (°C)', 
+       title = title)
+  
+  return(p1)
+}
 
-ggplot(temp_max, aes(x=month, y=max_temp, color=site))+
-  geom_line()
+plot_fn(data = temp_max,
+        yval = max_temp,
+        title = 'Maximum Temperature')
 
-ggplot(temp_min, aes(x=month, y=min_temp, color=site))+
-  geom_line()
+plot_fn(data = temp_means,
+        yval = mean_temp,
+        title = 'Minimum Temperature')
+
+plot_fn(temp_min, min_temp, 'Minimum Temperature')
 
 ```
 
-# dygraph of temp vs time
+## Temperature vs Time Interactive Plot
 
-```{r}
+```{r, message = FALSE}
 temp_wide <- temp %>%
   spread(., key='site',
          value='temp')%>%
@@ -126,30 +124,23 @@ temp_wide <- temp %>%
 temp_xts <- temp_wide %>%
   xts(., order.by = .$date)
 
-dygraph(data_xts)%>%
+dygraph(temp_xts)%>%
   dyAxis('y', label='Temperature (°C)', valueRange=c(-15,40))
 
-# min_temp <- temp_wide %>%
-#   filter(BM44 == -14.50)
 
 ```
 
+## Spatial Data.Frame
 
+```{r, warning = FALSE, message = FALSE}
 
-```{r}
-#location data frame
+utmE <- c(449451, 449437, 449220, 449008, 448513, 448198, 447880, 446903, 449429, 448272, 447472)
+  
+utmN <- c(4491181, 4491210, 4491086, 4490502, 4489917, 4489759, 4489705, 4489234, 4491265, 4489694, 4489393)
 
-utmE <- c(449451, 449437, 449220, 449008, 448513, 448198, 447880, 446903,
-          449429, 448272, 447472)
+elev <- c(2787, 2789, 2837, 2853, 2889, 2907, 2911, 3001, 2796.2, 2873, 2955)
 
-utmN <- c(4491181, 4491210, 4491086, 4490502, 4489917, 4489759, 4489705,
-          4489234, 4491265, 4489694, 4489393)
-
-elev <- c(2787, 2789, 2837, 2853, 2889, 2907, 2911, 3001, 2796.2, 2873,
-          2955)
-
-site <- c('BM25', 'BM26', 'BM28', 'BM29', 'BM30', 'BM31', 'BM32', 
-          'BM33', 'BM42', 'BM43', 'BM44')
+site <- c('BM25', 'BM26', 'BM28', 'BM29', 'BM30', 'BM31', 'BM32', 'BM33', 'BM42', 'BM43', 'BM44')
 
 location_data <- cbind(site, utmE, utmN, elev) %>%
   as.data.frame()
@@ -160,11 +151,10 @@ location_data_num <- location_data %>%
          utmN = as.numeric(as.character(utmN)),
          elev = as.numeric(as.character(elev)))
 
-str(location_data_num)
 ```
 
-# Making spatial points
-```{r}
+## Making spatial points
+```{r, warning = FALSE}
 
 spatial_points <- location_data_num %>%
   st_as_sf(coords=c('utmE','utmN'), crs=26913)
@@ -172,4 +162,229 @@ spatial_points <- location_data_num %>%
 mapview(spatial_points)
 
 ```
+
+## Buffering points
+```{r, warning = FALSE, message = FALSE}
+
+buffer_point <- spatial_points %>%
+  filter(site == "BM30")
+
+buffer_2km <- st_buffer(buffer_point, 2000)
+
+```
+
+## Cropping elev raster to buffered points, creating basemap
+```{r, warning = FALSE, message = FALSE}
+
+co_elev <- elevatr::get_elev_raster(buffer_2km,z=11)
+
+elev_clip <- crop(co_elev, buffer_2km)
+
+basemap <- tm_shape(elev_clip) + 
+  tm_raster(palette = 'Greys',
+            title = "Elevation (m)")
+
+tm_shape(elev_clip) + 
+  tm_raster(palette = 'Greys',
+            title = "Elevation (m)")+
+  tm_shape(spatial_points) + 
+  tm_dots(col = "elev",
+          title = "Elevation of Sites (m)",
+          style = "cont",
+          size = 0.5, 
+          palette ='viridis')
+
+```
+
+## Plotting Elevation vs temp
+
+```{r warning = FALSE, message = FALSE}
+merge_temp_location <- merge(temp, location_data_num, by ='site')
+
+ggplot(location_data_num, aes(x=utmE, utmN))+
+  geom_point()+
+  theme_classic()
+
+ggplot(merge_temp_location, aes(x=temp, y=elev, color= site))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x= 'Temperature (°C)', y= 'Elevation (m)')
+
+temp_avg_elev <- merge_temp_location%>%
+  group_by(site, elev)%>%
+  summarise(avg_temp = mean(temp))
+  
+ggplot(temp_avg_elev, aes(x=avg_temp, y=elev, color=site))+
+  geom_point()+
+  geom_abline(intercept = 3273.563, slope = -32.721)+
+  theme_linedraw()+
+  labs(x= 'Average Temperature (°C)', y='Elevation (m)')
+
+```
+
+## Daily Lapse Rate
+
+```{r, warning = FALSE, message = FALSE}
+
+#save(merge_temp_location, file= 'all_sites.Rdata')
+
+day_values <- merge_temp_location %>%
+  mutate(date = as.Date(date))%>%
+  group_by(date, site, elev)%>%
+  summarize(mean_temp = mean(temp),
+            min_temp = min(temp),
+            max_temp = max(temp))%>%
+  as.data.frame() %>%
+  as_tibble()
+
+day_wide <- day_values %>%
+  dplyr::select(1,2,4)%>%
+  spread(., key = "site",
+         value = "mean_temp")%>%
+  filter_if(is.numeric, all_vars(!is.na(.)))
+
+overall_lapse <- temp_avg_elev %>%
+  arrange(desc(elev))%>%
+  mutate(elev_km = elev/1000)%>%
+  as_tibble()
+
+simple_2 = lm(avg_temp~ elev_km, data=overall_lapse)
+summary(simple_2)
+
+ggscatter(overall_lapse,
+          x = "elev_km", 
+          y = "avg_temp", add = "reg.line")+
+  stat_cor(label.x = 2.940, label.y = 13) +
+  stat_regline_equation(label.x = 2.950, label.y = 13.5) + 
+  labs(x='Elevation (km)', y= 'Temperature (°C)')+
+  theme_linedraw()
+
+ggplot(overall_lapse, aes(x=elev_km, y=avg_temp, color=site))+
+  geom_point()+
+  geom_abline(intercept = 66.392, slope = -18.846)+
+  geom_abline(slope = -6.5, intercept = 29.5)+
+  theme_linedraw()+
+  labs(x= 'Elevation (km)', y= 'Temperature (°C)')
+
+```
+
+## Regression
+
+```{r, warning = FALSE, message = FALSE}
+elev_data <- merge_temp_location%>%
+  mutate(doy = yday(date))
+
+ydays <- elev_data%>%
+  pull(doy)%>%
+  unique(.)
+
+lm_fun<- function(x){
+  elev_data_fil <- elev_data%>%
+    group_by(site,doy)%>%
+    summarize(meanTemp = mean(temp),
+              elevation= mean(elev))%>%
+    filter(doy == x)
+  
+  lapse_lm<- lm(meanTemp~elevation,data=elev_data_fil)
+  
+}
+
+lapse_lm<- ydays%>%
+  map(~lm_fun(.x))%>%
+  set_names(ydays)
+
+lapse_lm_sum<- lapse_lm%>%
+  map(~summary(.x))
+
+lapse_lm_slopes<- lapse_lm%>%
+  map(~coef(.x)[2])%>%
+  simplify()%>%
+  tibble()%>%
+  mutate(doy = ydays)%>%
+  rename(lapse_rate=1)%>%
+  mutate(lapse_km = lapse_rate*1000)%>%
+  mutate(date = as.Date(doy, origin = "2019-01-01"))
+
+lapse_lm_intercept <- lapse_lm %>%
+  map(~coef(.x)[1])%>%
+  simplify()%>%
+  tibble()%>%
+  mutate(doy = ydays)%>%
+  rename(intercept = 1)%>%
+  filter(intercept > 0)%>%
+  mutate(date = as.Date(doy, origin = "2019-01-01"))
+
+```
+
+## Plotting lapse rates & intercepts
+
+```{r, warning = FALSE, message = FALSE}
+ggplot(lapse_lm_slopes, aes(x=date, y=lapse_km))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x= 'Date', y='Lapse Rate (°C/km)')
+
+# lm_daylapse <- lm(lapse_km~ doy, data = lapse_lm_slopes)
+# summary(lm_daylapse)
+
+ggplot(lapse_lm_intercept, aes(x=date, y=intercept))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x= 'Date', y='Temperature at Sea Level (°C)')
+
+```
+
+## Plotting errors and residuals
+
+```{r}
+
+
+
+```
+
+## Animation of minimum temp
+
+```{r, message = FALSE, warning = FALSE}
+
+animate_df <- merge_temp_location %>%
+  arrange(date) 
+
+animate_slice <- animate_df %>%
+  slice(1000:1250)
+
+slice_sf <- animate_slice %>%
+  st_as_sf(., coords=c('utmE','utmN'), crs=26913)
+
+full_dates_slice <- unique(slice_sf$date)
+
+sequence <- 1:length(full_dates_slice)
+
+saveGIF({
+  for(i in sequence){
+  subset_sf <- slice_sf %>%
+    filter(date == full_dates_slice[i])
+  
+  map <- basemap + tm_shape(subset_sf)+
+    tm_dots(title.size='Temperature (°C)',
+            col='elev',
+            palette='viridis',
+            size='temp',
+            scale=2,
+            style='cont')
+  
+  print(map + 
+        tm_layout(title=full_dates_slice[i],
+        legend.position=c(0.7,0.2)))
+  }
+},movie.name = 'temp_animation.gif',
+  interval=0.12,
+  ani.width=1000,
+  ani.height=800)
+
+
+```
+
+
+
+
 
