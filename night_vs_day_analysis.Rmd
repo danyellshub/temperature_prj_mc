@@ -19,23 +19,17 @@ library(purrr)
 
 ```
 
-Loading Data
+```{r, include=FALSE}
+#load('./all_sites.Rdata')
+```
+
+## Pulling Sunrise and Sunset Data
 ```{r}
+drk_sky_test <- get_forecast_for(40.556899, -105.611251,
+                                 "2019-07-01T12:00:00-0400")
 
-load('./all_sites.Rdata')
-
-str(merge_temp_location)
-
-# Pulling Sunrise and Sunset
-
-?get_forecast_for
-
-drk_sky_tmp <- get_forecast_for(40.556899, -105.611251, 
-                                timestamp = "2019-07-01T12:00:00",
-                                exclude = 'currently')
-
-daily_data <- drk_sky_tmp$daily
-hourly_data <- drk_sky_tmp$hourly
+daily_data <- drk_sky_test$daily
+hourly_data <- drk_sky_test$hourly
 
 date_string <- merge_temp_location %>%
   select(date) %>%
@@ -50,32 +44,111 @@ date_df <- date_string %>%
   mutate(lat = 40.556899,
          long = -105.611251)
 
-list_dates <- pmap(list(date_df$lat, date_df$long,
-                        date_df$when), 
-                   get_forecast_for)
-names(list_dates) <- date_string$date
+# list_dates <- pmap(list(date_df$lat, date_df$long,
+#                         date_df$when), 
+#                    get_forecast_for)
+# names(list_dates) <- date_string$date
 
+#save(list_dates, file = 'list_dates_drk.Rdata')
 
-daily_drk <- list_dates%>%
-  tibble()
+load('list_dates_drk.Rdata')
+```
 
+## Trying my own for loop for daily data from dark sky
+```{r}
+latitude <- 40.556899
+longitude <- -105.611251
 
-
-
-
-daily_function <- function(x){
-day <- list_dates$`x`
-daily_day_1 <- day1$daily%>%
+starting_daily <- get_forecast_for(latitude, longitude, "2019-07-04T01:00:00",
+                                   units = "us", language = "en",
+                                  exclude = 'currently, hourly, minutely',
+                                  add_json = FALSE, add_headers =FALSE)
+combined_daily <- starting_daily$daily%>%
   select(1,4,5)
+
+date_vector <- seq(from = as.Date("2019-07-05"), to = as.Date("2019-10-13"), by = 1)
+
+for(i in as.list(date_vector)){
+    print(i)
+  a_timestamp <- paste(i, "T01:00:00", sep = "")
+  b_forecast <- get_forecast_for(latitude, longitude, a_timestamp, 
+                                 units = "us", language = "en",
+                                 exclude = 'currently, hourly, minutely',
+                                 add_json = FALSE, add_headers =FALSE)
+  c_forecast <- b_forecast$daily%>%
+    select(1,4,5)
+
+  combined_daily <- rbind(combined_daily, c_forecast)
 }
 
 ```
 
-Day Averages
+## Merging Sunrise/Sunset data with temperature data
+
+```{r}
+temp_data <- merge_temp_location %>%
+  rename(datetime = date)%>%
+  mutate(date = date(datetime))
+
+combined_daily_for_merge <- combined_daily%>%
+  mutate(date = seq(from = as.Date("2019-07-04"), 
+                    to = as.Date("2019-10-13"), by = 1))
+
+temp_sun_data <- merge(temp_data, combined_daily_for_merge, by = 'date')
+
+```
+
+## Data organized by day and night & averaged
+
 ```{r}
 
-day_avg <- merge_temp_location %>%
-  mutate(hour = )
+day_and_night <- temp_sun_data %>%
+  select(-time)%>%
+  mutate(day_night = ifelse(datetime > sunriseTime & datetime < sunsetTime,
+                            'day', 'night'))%>%
+  arrange(datetime)
+
+day_night_average <- day_and_night %>%
+  group_by(site, date, day_night)%>%
+  summarise(avg_temp = mean(temp),
+            elev = mean(elev),
+            utmE = mean(utmE),
+            utmN = mean(utmN))%>%
+  arrange(date)
+
+```
+
+## Plotting Day vs Night Averages
+
+```{r}
+
+ggplot(day_night_average, aes(x = date, y= avg_temp, 
+                              group = site, color = day_night))+
+  geom_point()+
+  theme_linedraw()+
+  labs(x='Date', y= 'Average Temp (°C)')
+
+ggplot(day_night_average, aes(x=date, y=avg_temp,
+                                 color = day_night))+
+  geom_point()+
+  facet_wrap(~site)+
+  theme_linedraw()+
+  labs(x='Date', y= 'Average Temp (°C)')
+
+```
+
+## Regression
+
+```{r}
+
+head(day_night_average)
+#lm(mean_temp ~ elev)
+
+day_night_wide <- day_night_average %>%
+  spread(., key = 'day_night',
+         value = 'avg_temp')
+
+
 
 ```
 

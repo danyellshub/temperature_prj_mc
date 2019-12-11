@@ -107,7 +107,7 @@ plot_fn(data = temp_max,
 
 plot_fn(data = temp_means,
         yval = mean_temp,
-        title = 'Minimum Temperature')
+        title = 'Mean Temperature')
 
 plot_fn(temp_min, min_temp, 'Minimum Temperature')
 
@@ -338,6 +338,12 @@ ggplot(lapse_lm_intercept, aes(x=date, y=intercept))+
 
 ```{r}
 
+playing_around <- lapse_lm %>%
+  map(~coef(.x)[2])%>%
+  simplify()%>%
+  tibble()
+
+lapse_lm_sum
 
 
 ```
@@ -350,7 +356,7 @@ animate_df <- merge_temp_location %>%
   arrange(date) 
 
 animate_slice <- animate_df %>%
-  slice(1000:1250)
+  slice(1000:1500)
 
 slice_sf <- animate_slice %>%
   st_as_sf(., coords=c('utmE','utmN'), crs=26913)
