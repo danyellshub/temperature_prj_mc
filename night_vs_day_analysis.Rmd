@@ -24,37 +24,7 @@ library(purrr)
 ```
 
 ## Pulling Sunrise and Sunset Data
-```{r}
-drk_sky_test <- get_forecast_for(40.556899, -105.611251,
-                                 "2019-07-01T12:00:00-0400")
 
-daily_data <- drk_sky_test$daily
-hourly_data <- drk_sky_test$hourly
-
-date_string <- merge_temp_location %>%
-  select(date) %>%
-  mutate(date = date(date))%>%
-  unique(.)
-
-date = date_string$date
-
-date_df <- date_string %>%
-  mutate(time = "T12:00:00-0400")%>%
-  unite(when, c(date, time), sep = "")%>%
-  mutate(lat = 40.556899,
-         long = -105.611251)
-
-# list_dates <- pmap(list(date_df$lat, date_df$long,
-#                         date_df$when), 
-#                    get_forecast_for)
-# names(list_dates) <- date_string$date
-
-#save(list_dates, file = 'list_dates_drk.Rdata')
-
-load('list_dates_drk.Rdata')
-```
-
-## Trying my own for loop for daily data from dark sky
 ```{r}
 latitude <- 40.556899
 longitude <- -105.611251
@@ -141,16 +111,155 @@ ggplot(day_night_average, aes(x=date, y=avg_temp,
 
 ```{r}
 
-head(day_night_average)
-#lm(mean_temp ~ elev)
-
 day_night_wide <- day_night_average %>%
   spread(., key = 'day_night',
-         value = 'avg_temp')
+         value = 'avg_temp')%>%
+  mutate(doy = yday(date))%>%
+  arrange(doy)%>%
+  mutate(elev_km = elev/1000)
+
+ydays <- day_night_wide %>%
+  mutate(doy = yday(date))%>%
+  pull(doy)%>%
+  unique()
+
+day_lm_fun <- function(x){
+ filter_temp <- day_night_wide%>%
+    filter(doy == x)
+ 
+  daily_lapse_lm <- lm(day~elev_km, data = filter_temp)
+}
+
+day_lm <- ydays%>%
+  map(~day_lm_fun(.x))%>%
+  set_names(ydays)
+
+day_lm_slopes <- day_lm%>%
+  map(~coef(.x)[2])%>%
+  simplify()%>%
+  tibble()%>%
+  rename(Day = 1)%>%
+  mutate(date = seq(from = as.Date("2019-07-04"), 
+                    to = as.Date("2019-10-13"), by = 1))
 
 
+night_lm_fun <- function(x){
+ filter_temp <- day_night_wide%>%
+    filter(doy == x)
+ 
+  daily_lapse_lm <- lm(night ~ elev_km, data = filter_temp)
+}
+
+night_lm <- ydays%>%
+  map(~night_lm_fun(.x))%>%
+  set_names(ydays)
+
+night_lm_slopes <- night_lm%>%
+  map(~coef(.x)[2])%>%
+  simplify()%>%
+  tibble()%>%
+  rename(Night = 1)%>%
+  mutate(date = seq(from = as.Date("2019-07-04"), 
+                    to = as.Date("2019-10-13"), by = 1))
 
 ```
 
+## Joining Night and Day Linear Models and Plotting
+
+```{r}
+
+night_day_lm <- merge(day_lm_slopes, night_lm_slopes, by = 'date')
+
+night_day_slopes_long <- night_day_lm %>%
+  gather(., key = 'Time',
+         value = 'lapse_rate',
+         -date)
+
+ggplot(night_day_slopes_long, aes(x=date, y=lapse_rate, color = Time))+
+  geom_point()+
+  theme_linedraw()+
+  theme(legend.position = c(0.75, 0.75))+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+ggplot(night_day_slopes_long, aes(x=date, y=lapse_rate, color = Time))+
+  geom_line()+
+  theme_linedraw()+
+  theme(legend.position = c(0.75, 0.75))+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+```
+
+## Zoomed in, while all iButtons were 'online'
+
+```{r}
+
+online_night_day_slope <- night_day_slopes_long%>%
+  filter(date > "2019-07-13")
+
+ggplot(online_night_day_slope, aes(x=date, y=lapse_rate, color = Time))+
+  geom_line()+
+  theme_linedraw()+
+  theme(legend.position = c(0.6, 0.85))+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+```
+
+## Pulling R^2 Values
+
+```{r}
+day_lm_sum_r <- day_lm %>%
+  map(~summary(.x)$r.squared)%>%
+  tibble()%>%
+  rename(Day = 1)%>%
+  mutate(date = seq(from = as.Date("2019-07-04"), 
+                    to = as.Date("2019-10-13"), by = 1))
+
+
+night_lm_sum_r <- night_lm %>%
+  map(~summary(.x)$r.squared)%>%
+  tibble()%>%
+  rename(Night = 1)%>%
+  mutate(date = seq(from = as.Date("2019-07-04"), 
+                    to = as.Date("2019-10-13"), by = 1))
+
+day_night_r <- merge(day_lm_sum_r, night_lm_sum_r, by = 'date')
+
+day_night_r_long <- day_night_r %>%
+  gather(., key = 'Time',
+         value = 'R_squared',
+         -date)
+
+r_plotting_ready <- day_night_r_long %>%
+  mutate(R_squared = as.numeric(as.list(R_squared)))%>%
+  rename(dateR = 1, TimeR = 2)
+
+```
+
+## Plotting R^2 Values and creating data frame with Slope and R Squared
+
+```{r}
+
+ggplot(r_plotting_ready, aes(x=dateR, y= R_squared, color = TimeR))+
+  geom_point()+
+  theme_linedraw()+
+  theme(legend.position = c(0.075, 0.11), legend.title=element_blank())+
+  labs(x = 'Date', y = 'R Squared')
+
+slope_R_all <- cbind(r_plotting_ready, night_day_slopes_long)%>%
+  select(3,4:6)
+
+```
+
+## Plotting R squared values and slopes
+
+```{r}
+
+ggplot(slope_R_all, aes(x=date, y=lapse_rate,
+                        color=Time, size=R_squared))+
+  geom_point(alpha=0.67)+
+  theme_linedraw()+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+```
 
 
