@@ -52,7 +52,6 @@ my_reader <- function(file){
 
 data_clean <- map_dfr(files,my_reader)
 
-
 ```
 
 ## Basic Temperature Plots

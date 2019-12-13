@@ -92,8 +92,8 @@ day_night_average <- day_and_night %>%
 
 ```{r}
 
-ggplot(day_night_average, aes(x = date, y= avg_temp, 
-                              group = site, color = day_night))+
+ggplot(day_night_average, aes(x = date, y= avg_temp, group = site, 
+                             color = day_night))+
   geom_point()+
   theme_linedraw()+
   labs(x='Date', y= 'Average Temp (°C)')
@@ -104,6 +104,7 @@ ggplot(day_night_average, aes(x=date, y=avg_temp,
   facet_wrap(~site)+
   theme_linedraw()+
   labs(x='Date', y= 'Average Temp (°C)')
+
 
 ```
 
@@ -250,11 +251,20 @@ slope_R_all <- cbind(r_plotting_ready, night_day_slopes_long)%>%
 
 ```
 
-## Plotting R squared values and slopes
+## Plotting R squared values and slopes (with and without correction)
 
 ```{r}
 
 ggplot(slope_R_all, aes(x=date, y=lapse_rate,
+                        color=Time, size=R_squared))+
+  geom_point(alpha=0.67)+
+  theme_linedraw()+
+  labs(x = 'Date', y = 'Lapse Rate (°C/km)')
+
+slope_R_online <- slope_R_all %>%
+  filter(date > "2019-07-08")
+
+ggplot(slope_R_online, aes(x=date, y=lapse_rate,
                         color=Time, size=R_squared))+
   geom_point(alpha=0.67)+
   theme_linedraw()+
