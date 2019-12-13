@@ -1,5 +1,5 @@
 ---
-title: "Cirque Meadows lapse rate analysis"
+title: "Mountain Campus lapse rate analysis"
 author: "Danielle Reimanis"
 date: "12/11/2019"
 output: html_document
@@ -30,10 +30,27 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 # Introduction
 
-Lapse rate is often needed for calculating temperature gradients which is important when measuring water resources in mountain driven watersheds. 
+Lapse rate is often needed for calculating temperature gradients which is important when modeling hydrological resources in mountain driven watersheds. Lapse rate is often assumed to be -6.5 °C/km, and though this is a fine average of what's been found around the world, it is not accurate to assume this to be a 'catch-all' lapse rate for all environments. Applying an incorrect lapse rate to a study area will skew temperatures, and likely affect quantifying snow accumulation and snow melt that will affect hydrologic models. Temporal and spatial variability are key in understanding these varying lapse rates. Other work has been done modeling lapse rate in complex terrain using parameters that look at new variables such as seasonal and diurnal variability as well as windward vs leeward sides of a mountain. This study uses temperature data from eleven sites in the Colorado Rocky Mountains near Colorado State University's mountain campus in Bellvue, Larimer County, Colorado. Other work is currently being done in the area looking at spatial and temporal variation of temperature and comparing it to MODIS Land Surface Temperature data.
 
---> Antonio's paper
---> 6.5°C/km in cascadian mountains paper
+# Methods
+
+## Study Area
+
+The mountain campus sits at 2760 meters and is roughly 80 kilometers along the road from the city of Fort Collins, Colorado. The area was affected by the High Park fire in 2012, where some of the land is old forest filled with spruces and firs, while some of the land is new forest with a mix of young aspens and pines. The headwaters of the South Fork of the Poudre River exist within the surrounding mountains to the mountain campus. 
+
+## iButton data
+
+Eleven iButtons were placed in trees, each with a radiation shield. The transact was 4 kilometers long and ranged in elevation of 2787 meters - 3001 meters. There were 214 meters of elevation change to calculate these lapse rates.
+
+The first sensors started collecting July 5th, 2019 and the last sensors were set up July 8th, 2019. The discrepancy of not having all sites running for the those three days can be seen throughout this paper. When all sites were collecting data, this is referred to as having all sites 'online', this happens July 8th, 2019 at 15:30. Data were collected on October 13th, 2019 and analyzed back in Fort Collins. 
+All analysis was carried out in R.
+
+## Analysis
+
+Once the data was clean and organized, linear models were applied to average temperatures for the entire data collection period, daily averages, hourly data, and finally night and day averages. These range in resolution from coarse to fine, and most analysis was done with a medium-fine scale (the diurnal averages.) Night and day was determined by using sunrise and sunset data from the Dark Sky network. 
+
+As a note, over the 31,906 observations from each of the eleven stations, there was not a single 'NA' in temperature data.
+
 
 #### Reading in iButton data
 
@@ -60,12 +77,6 @@ data_clean <- map_dfr(files,my_reader)
 
 ```
 
-## Study Area
-
-The mountain campus & Cirque Meadow Trail. 
-High park fire in 2012
-New growth/old growth. 
-
 #### Hard coding elevation and UTM data with each site
 
 ```{r}
@@ -89,7 +100,7 @@ location_data_num <- location_data %>%
 
 ```
 
-#### Making site data spatial and adding buffer for basemap
+#### Spatial site data and adding buffer for basemap
 
 ```{r} 
 
@@ -160,17 +171,6 @@ dygraph(temp_xts)%>%
 
 **Figure 2**: Interactive plot exploring hourly temperature at all sites.
 
-# Methods
-
-Collected data on Oct 13th. Read into R. Cleaned data. (No NAs). 
-Applied linear models to
-1) monthly
-2) daily
-3) hourly
-4) night and day (diurnal)
-
-Pulled data from Dark Sky
-
 # Results
 
 #### Minimum, Average, and Maximum Temperature at the eleven sites
@@ -196,7 +196,7 @@ ggplot(temp_avg_elev, aes(x=temp, y=elev, color=site))+
 
 ```
 
-**Figure 3** Minimum, Average, and Maximum temperature of the eleven sites. Note the spread between the three types of temperature per site.
+**Figure 3**: Minimum, Average, and Maximum temperature of the eleven sites. Note the spread between the three types of temperature per site.
 
 ### Linear regression using average temperature data (**coarse resolution**)
 
@@ -219,7 +219,7 @@ ggscatter(overall_lapse,
 
 ```
 
-**Figure 4** Linear model of average temperature per elevation. The slope of -19 indicates a lapse rate of 19°C per kilometer. This is the coarsest resolution of this lapse rate analysis. 
+**Figure 4**: Linear model of average temperature per elevation. The slope of -19 indicates a lapse rate of 19°C per kilometer. This is the coarsest resolution of this lapse rate analysis. 
 
 ### Linear regression using daily temperature data (**medium resolution**)
 
@@ -278,7 +278,7 @@ ggplot(lapse_lm_slopes, aes(x=date, y=lapse_km))+
   labs(x= 'Date', y='Lapse Rate (°C/km)')
 ```
 
-**Figure 5** Lapse rates in degrees Celsius per kilometer using daily data of the eleven sites. The initial four points are greater than the rest because not all of the sensors were 'online' yet, and the three sensors set up were all within 50 meters of each other, but had quite varying average temperatures. 
+**Figure 5**: Lapse rates in degrees Celsius per kilometer using daily data of the eleven sites. The initial four points are greater than the rest because not all of the sensors were 'online' yet, and the three sensors set up were all within 50 meters of each other, but had quite varying average temperatures. 
 
 ```{r}
 ggplot(lapse_lm_intercept, aes(x=date, y=intercept))+
@@ -288,7 +288,7 @@ ggplot(lapse_lm_intercept, aes(x=date, y=intercept))+
 
 ```
 
-**Figure 6** Coefficients of the daily regression. These would be temperatures at sea level if the lapse rate continued to lower elevations. This figure was included as most of the lapse rate from daily data have unrealistic lapse rate to apply to a larger scale. 
+**Figure 6**: Coefficients of the daily regression. These would be temperatures at sea level if the lapse rate continued to lower elevations. This figure was included as most of the lapse rate from daily data have unrealistic lapse rate to apply to a larger scale. 
 
 ### Linear regression using hourly temperature data (**fine resolution**)
 
@@ -358,7 +358,7 @@ ggplot(hr_lapse_corrected, aes(x = date, y = lapse_km))+
 
 ```
 
-**Figure 8**: Hourly lapse rate in degrees Celsius per kilometer over the eleven sites. Most lapse rates are negative, though occosionally become positive indicating warmer air high in elevation. 
+**Figure 8**: Hourly lapse rate in degrees Celsius per kilometer over the eleven sites. Most lapse rates are negative, though occasionally become positive indicating warmer air high in elevation. 
 
 #### Plotting intercepts of hourly regression
 
@@ -378,7 +378,7 @@ ggplot(hr_lapse_coef, aes(x = date, y = intercept))+
 
 ```
 
-**Figure 9**: Interecepts of the hourly linear regression models. There are some values that are realistic, but many of these intercepts are so large this indicates this model cannot be applied to a large scale. 
+**Figure 9**: Intercepts of the hourly linear regression models. There are some values that are realistic, but many of these intercepts are so large this indicates this model cannot be applied to a large scale. 
 
 ### Linear regression using day and night data (**medium-fine resolution**)
 
@@ -606,7 +606,7 @@ ggplot(r_plotting_ready, aes(x=dateR, y= R_squared))+
   scale_color_manual(values = c("orange", "black"))+
   theme_linedraw()+
   theme(legend.position = c(0.075, 0.11), legend.title=element_blank())+
-  labs(x = 'Date', y = 'R^2^')
+  labs(x = 'Date', y = 'R Squared')
 
 ```
 
@@ -622,7 +622,7 @@ ggplot(slope_R_all, aes(x=date, y=lapse_rate, size=R_squared))+
   labs(x = 'Date', y = 'Lapse Rate (°C/km)')
 ```
 
-**Figure 14**: Day and night lapse rates along with R^2^ values plotted through time of the eleven stations. The smaller the point, the smaller the R^2^ value, and this often happened closer to a lapse rate of 0 °C/km. The initial values while only a few of the stations were 'online' still had sizeable R^2^ values.
+**Figure 14**: Day and night lapse rates along with R^2^ values plotted through time of the eleven stations. The smaller the point, the smaller the R^2^ value, and this often happened closer to a lapse rate of 0 °C/km. The initial values while only a few of the stations were 'online' still had sizable R^2^ values.
 
 ```{r}
 slope_R_online <- slope_R_all %>%
@@ -640,10 +640,56 @@ ggplot(slope_R_online, aes(x=date, y=lapse_rate, size=R_squared))+
 
 # Discussion
 
-Overall trends, but more importantly
-what to do next!
+Picking which model to use is a function of the resolution that is desired. For our purpose, it was logical to use diurnal averages and those data had some noticeable differences. Night lapse rates were often in smaller in magnitude than day lapse rates, but also had a lower R^2^ value which indicates more variation between sites. The few positive lapse rates could indicate cold air drainage into the valley system. 
 
---> Antonio's paper
---> 6.5°C/km in cascadian mountains paper???
+This is only the beginning of this study, and the next parts of the analysis will include lapse rates for dusk and dawn (the averages of temperature data for the few hours before/after sunrise/sunset) and compare sites of differing characteristics. For example, BM31 sits in old forest whereas BM30 sits in new forest. These sites have a difference of 18 meters in elevation, though a small analysis showed quite the different temperatures. 
+
+This analysis sought to carry-out preliminary analysis of temperature data of a small study area in the Colorado mountains, though it also provided data and an excuse to learn R.
+
+# Appendix
+
+#### Animation .gif
+Commented out as file is saved already.
+
+```{r}
+# 
+# animate_df <- merge_temp_location %>%
+#   arrange(date) 
+# 
+# animate_slice <- animate_df %>%
+#   slice(1000:1500)
+# 
+# slice_sf <- animate_slice %>%
+#   st_as_sf(., coords=c('utmE','utmN'), crs=26913)
+# 
+# full_dates_slice <- unique(slice_sf$date)
+# 
+# sequence <- 1:length(full_dates_slice)
+# 
+# saveGIF({
+#   for(i in sequence){
+#   subset_sf <- slice_sf %>%
+#     filter(date == full_dates_slice[i])
+#   
+#   map <- basemap + tm_shape(subset_sf)+
+#     tm_dots(title.size='Temperature (°C)',
+#             col='elev',
+#             palette='viridis',
+#             size='temp',
+#             scale=2,
+#             style='cont')
+#   
+#   print(map + 
+#         tm_layout(title=full_dates_slice[i],
+#         legend.position=c(0.7,0.2)))
+#   }
+# },movie.name = 'temp_animation.gif',
+#   interval=0.12,
+#   ani.width=1000,
+#   ani.height=800)
+
+```
+
+![](temp_animation.gif)
 
 

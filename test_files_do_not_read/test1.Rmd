@@ -1,0 +1,13 @@
+---
+title: "Untitled"
+author: "Danielle Reimanis"
+date: "12/13/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+![](temp_animation.gif)
+
